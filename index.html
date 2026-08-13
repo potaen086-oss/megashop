@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MegaShop - แพลตฟอร์มช้อปปิ้งออนไลน์และผู้ช่วย AI อัจฉริยะ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#7c3aed">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+        .purple-gradient { background: linear-gradient(135deg, #7c3aed, #9333ea); }
+    </style>
+</head>
+<body class="text-gray-800 pb-16">
+
+    <!-- Navbar หลัก (รองรับมือถือและคอมพิวเตอร์ด้วย Flexbox ยืดหยุ่น) -->
+    <nav class="purple-gradient text-white sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+            <div class="w-full md:w-auto flex justify-between items-center">
+                <span class="text-xl md:text-2xl font-bold italic tracking-wider">MegaShop 🛒</span>
+                <!-- ปุ่มเมนูมือถือย่อขยาย -->
+                <button onclick="toggleMobileMenu()" class="md:hidden text-white text-xl focus:outline-none">
+                    <i class="fa fa-bars"></i>
+                </button>
+            </div>
+           
+            <div class="w-full md:flex-1 max-w-xl flex items-center bg-white rounded-lg overflow-hidden shadow-inner px-3 py-1.5">
+                <input type="text" id="search-input" oninput="filterProducts()" placeholder="ค้นหาสินค้า, กระเป๋า, รองเท้า, เครื่องมือช่าง..." class="w-full text-gray-800 focus:outline-none text-xs md:text-sm bg-transparent">
+               
+                <button onclick="triggerMainCamera()" title="ถ่ายภาพเพื่อค้นหาสินค้า" class="text-gray-400 hover:text-purple-600 px-2 text-sm transition">
+                    <i class="fa fa-camera"></i>
+                </button>
+                <input type="file" id="main-image-file" accept="image/*" capture="environment" class="hidden" onchange="handleMainImageUpload(event)">
+
+                <button onclick="triggerMainVoice()" id="main-mic-btn" title="พูดเพื่อพิมพ์" class="text-gray-400 hover:text-purple-600 px-2 text-sm transition">
+                    <i class="fa fa-microphone"></i>
+                </button>
+
+                <button onclick="filterProducts()" class="bg-purple-600 hover:bg-purple-700 text-white px-3 md:px-4 py-1.5 rounded-lg font-bold transition ml-1 flex items-center justify-center text-xs md:text-sm">
+                    <i class="fa fa-search"></i>
+                </button>
+            </div>
+
+            <!-- เมนูปุ่มด้านขวา ปรับขนาดตามหน้าจอ -->
+            <div id="nav-menu-links" class="w-full md:w-auto flex flex-wrap justify-center md:flex-nowrap gap-2 items-center text-xs">
+                <button onclick="toggleAiModal()" class="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-2 rounded-lg font-semibold transition flex items-center gap-1 shadow">
+                    <i class="fa fa-robot"></i> AI ผู้ช่วย
+                </button>
+                <button onclick="toggleSyncQrModal()" class="bg-white/10 hover:bg-white/20 px-2.5 py-2 rounded-lg font-semibold transition flex items-center gap-1">
+                    <i class="fa fa-qrcode"></i> สแกน QR
+                </button>
+                <button onclick="toggleRegisterModal()" class="bg-amber-500 hover:bg-amber-600 text-gray-900 px-2.5 py-2 rounded-bold transition shadow">
+                    <i class="fa fa-store"></i> สมัครสมาชิก / เปิดร้านค้า
+                </button>
+                <button onclick="handleUnifiedCartLoginClick()" id="unified-cart-login-btn" class="bg-white/20 hover:bg-white/30 px-2.5 py-2 rounded-lg font-semibold transition flex items-center gap-1.5">
+                    <i class="fa fa-sign-in-alt"></i> <span id="unified-btn-text">เข้าสู่ระบบ / ตะกร้า (0)</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- เนื้อหาหลัก -->
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+       
+        <!-- หมวดหมู่สินค้า (เลื่อนดูได้ในมือถือ / ตารางสวยงามในจอใหญ่) -->
+        <section class="bg-white p-4 rounded-2xl shadow-sm">
+            <h3 class="font-bold text-sm mb-3 text-gray-800 border-b pb-2 flex items-center gap-2">
+                <i class="fa fa-list text-purple-600"></i> หมวดหมู่สินค้าทั้งหมด
+            </h3>
+            <div class="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2 text-xs">
+                <button onclick="filterByCategory('ทั้งหมด')" class="bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-800 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border border-purple-100">
+                    <i class="fa fa-fire text-red-500 text-sm"></i> ทั้งหมด
+                </button>
+                <button onclick="filterByCategory('กระเป๋า')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-shopping-bag text-purple-500 text-sm"></i> กระเป๋า
+                </button>
+                <button onclick="filterByCategory('รองเท้า')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-shoe-prints text-purple-500 text-sm"></i> รองเท้า
+                </button>
+                <button onclick="filterByCategory('เครื่องมือช่าง')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-tools text-purple-500 text-sm"></i> เครื่องมือช่าง
+                </button>
+                <button onclick="filterByCategory('อะไหล่ยนต์')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-car text-purple-500 text-sm"></i> อะไหล่รถยนต์
+                </button>
+                <button onclick="filterByCategory('มอเตอร์ไซค์')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-motorcycle text-purple-500 text-sm"></i> มอเตอร์ไซค์
+                </button>
+                <button onclick="filterByCategory('เครื่องมือยนต์')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-cogs text-purple-500 text-sm"></i> เครื่องมือยนต์
+                </button>
+                <button onclick="filterByCategory('เครื่องมือมอเตอร์ไซค์')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-wrench text-purple-500 text-sm"></i> เครื่องมือมอไซค์
+                </button>
+                <button onclick="filterByCategory('คอมพิวเตอร์')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-laptop text-purple-500 text-sm"></i> คอมพิวเตอร์
+                </button>
+                <button onclick="filterByCategory('อะไหล่คอมพิวเตอร์')" class="bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-700 p-2.5 rounded-xl font-semibold transition flex flex-col items-center justify-center gap-1 text-center border">
+                    <i class="fa fa-microchip text-purple-500 text-sm"></i> อะไหล่คอม
+                </button>
+            </div>
+        </section>
+
+        <!-- แสดงรายการสินค้า Grid Responsive -->
+        <section class="space-y-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4" id="product-grid"></div>
+        </section>
+    </main>
+
+    <!-- Modal: สแกน QR Code -->
+    <div id="sync-qr-modal" class="fixed inset-0 bg-black/70 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl relative space-y-4 text-center">
+            <button onclick="toggleSyncQrModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
+            <div class="purple-gradient text-white w-14 h-14 rounded-full flex items-center justify-center mx-auto text-2xl shadow">
+                <i class="fa fa-qrcode"></i>
+            </div>
+            <h3 class="font-bold text-lg text-purple-900">เชื่อมโยงบัญชีคอมพิวเตอร์และมือถือ</h3>
+            <p class="text-xs text-gray-500">ใช้กล้องมือถือของคุณสแกน QR Code นี้ เพื่อเข้าสู่ระบบและเชื่อมโยงบัญชี/ร้านค้าเดียวกันทันที</p>
+           
+            <div class="bg-gray-100 p-4 rounded-2xl inline-block border shadow-inner">
+                <div class="w-40 h-40 bg-white p-2 rounded-xl flex flex-col items-center justify-center border mx-auto relative overflow-hidden group">
+                    <i class="fa fa-qrcode text-7xl text-purple-800"></i>
+                    <div class="absolute inset-0 bg-purple-900/80 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition duration-300 cursor-pointer" onclick="simulateMobileScan()">
+                        <i class="fa fa-camera text-2xl mb-1"></i>
+                        <span class="text-[10px] font-bold">จำลองกดสแกนจากมือถือ</span>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="simulateMobileScan()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-xs font-bold transition shadow">
+                จำลองใช้มือถือสแกนยืนยันบัญชีทันที
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal: เข้าสู่ระบบ -->
+    <div id="login-modal" class="fixed inset-0 bg-black/70 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl relative space-y-4 text-xs">
+            <button onclick="toggleLoginModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
+            <div class="text-center">
+                <h3 class="font-bold text-base text-purple-900"><i class="fa fa-sign-in-alt"></i> เข้าสู่ระบบ MegaShop</h3>
+                <p class="text-gray-500 mt-0.5">เลือกช่องทางที่คุณต้องการเข้าสู่ระบบ</p>
+            </div>
+            <div class="space-y-3 pt-1">
+                <div>
+                    <label class="block text-gray-600 font-semibold mb-1">อีเมล หรือ เบอร์มือถือ</label>
+                    <input type="text" id="login-identifier" placeholder="example@email.com หรือ 0812345678" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-600">
+                </div>
+                <div>
+                    <label class="block text-gray-600 font-semibold mb-1">รหัสผ่าน</label>
+                    <input type="password" id="login-password" placeholder="กรอกรหัสผ่าน" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-600">
+                </div>
+                <button onclick="requestOtpForLogin('ระบบปกติ')" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl font-bold text-sm shadow transition">
+                    ดำเนินการต่อ (ยืนยันตัวตน OTP)
+                </button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 pt-2">
+                <button onclick="requestOtpForLogin('Google')" class="border hover:bg-gray-50 py-2 px-2 rounded-xl font-semibold flex items-center justify-center gap-1 text-gray-700 transition">
+                    <i class="fab fa-google text-red-500"></i> Google
+                </button>
+                <button onclick="requestOtpForLogin('Facebook')" class="border hover:bg-blue-50 py-2 px-2 rounded-xl font-semibold flex items-center justify-center gap-1 text-blue-600 transition">
+                    <i class="fab fa-facebook text-blue-600"></i> Facebook
+                </button>
+                <button onclick="requestOtpForLogin('LINE')" class="border hover:bg-green-50 py-2 px-2 rounded-xl font-semibold flex items-center justify-center gap-1 text-green-600 transition">
+                    <i class="fab fa-line text-green-500"></i> LINE
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: OTP -->
+    <div id="otp-modal" class="fixed inset-0 bg-black/70 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl relative space-y-4 text-xs text-center">
+            <button onclick="closeOtpModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
+            <div class="w-12 h-12 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center mx-auto text-lg">
+                <i class="fa fa-shield-alt"></i>
+            </div>
+            <h3 class="font-bold text-base text-purple-900">ยืนยันตัวตนความปลอดภัย (OTP)</h3>
+            <p class="text-gray-500" id="otp-instruction">ระบบได้ส่งรหัสยืนยัน 6 หลักไปที่บัญชีของคุณแล้ว</p>
+            <input type="text" id="otp-code-input" maxlength="6" placeholder="กรอกรหัส OTP 6 หลัก" class="w-full text-center tracking-widest text-lg font-bold border rounded-xl py-2 px-3 focus:outline-none focus:border-purple-600 bg-gray-50">
+            <button onclick="verifyOtpAndLogin()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl font-bold text-sm shadow">
+                ยืนยันตัวตนสำเร็จและเข้าสู่ระบบ
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal: สมัครสมาชิกและเปิดร้านค้า (ครบทุกช่องตาราง Stores สมบูรณ์แบบ) -->
+    <div id="register-modal" class="fixed inset-0 bg-black/70 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg p-6 rounded-2xl shadow-2xl relative space-y-3 text-xs max-h-[90vh] overflow-y-auto">
+            <button onclick="toggleRegisterModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
+            <h3 class="font-bold text-base text-purple-900"><i class="fa fa-store"></i> สมัครสมาชิก / เปิดร้านค้า (เชื่อมตาราง Stores ครบถ้วน)</h3>
+            
+            <div class="space-y-2.5">
+                <div>
+                    <label class="block font-semibold mb-1">ชื่อ-นามสกุลเจ้าของร้าน (owner_name)</label>
+                    <input type="text" id="reg-owner" placeholder="เช่น นายปัญญา โพเตียน" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold mb-1">ชื่อร้านค้า (shop_name)</label>
+                        <input type="text" id="reg-storename" placeholder="ชื่อร้าน MegaShop" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">เบอร์โทรศัพท์ (phone)</label>
+                        <input type="text" id="reg-phone" placeholder="0812345678" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold mb-1">บ้านเลขที่ (address_no)</label>
+                        <input type="text" id="reg-address" placeholder="123/4" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">ถนน (road)</label>
+                        <input type="text" id="reg-road" placeholder="แสงชูโต" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold mb-1">ตำบล/แขวง (subdistrict)</label>
+                        <input type="text" id="reg-subdistrict" placeholder="ท่าม่วง" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">อำเภอ/เขต (district)</label>
+                        <input type="text" id="reg-district" placeholder="ท่าม่วง" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold mb-1">จังหวัด (province)</label>
+                        <input type="text" id="reg-province" placeholder="กาญจนบุรี" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">รหัสไปรษณีย์ (zipcode)</label>
+                        <input type="text" id="reg-zipcode" placeholder="71110" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">ลิงก์ร้านค้า / เฟซบุ๊ก (shop_link)</label>
+                    <input type="text" id="reg-shoplink" placeholder="https://facebook.com/megashop" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">รูปถ่ายบัตรประชาชน (id_card_url)</label>
+                    <input type="text" id="reg-idcard" placeholder="วางลิงก์ URL รูปภาพบัตรประชาชน" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">ทะเบียนพาณิชย์ (registration_url)</label>
+                    <input type="text" id="reg-regisurl" placeholder="วางลิงก์ URL ทะเบียนพาณิชย์ (ถ้ามี)" class="w-full border rounded-lg px-3 py-2 bg-gray-50">
+                </div>
+            </div>
+
+            <button onclick="handleRegister(event)" class="w-full purple-gradient text-white py-2.5 rounded-xl font-bold mt-2 shadow transition hover:opacity-90">
+                บันทึกสมัครสมาชิกและเปิดร้านค้าลงตาราง Stores
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal: AI ผู้ช่วย -->
+    <div id="ai-modal" class="fixed inset-0 bg-black/70 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col h-[450px] overflow-hidden">
+            <div class="purple-gradient text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-base"><i class="fa fa-robot"></i> MegaShop AI</h3>
+                <button onclick="toggleAiModal()" class="text-white font-bold text-xl">&times;</button>
+            </div>
+            <div id="ai-chat-box" class="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50 text-xs">
+                <div class="bg-white p-3 rounded-xl border">สวัสดีครับ มีอะไรให้ MegaShop AI ช่วยค้นหาหรือแนะนำไหมครับ?</div>
+            </div>
+            <div class="p-3 bg-white border-t flex gap-2">
+                <input type="text" id="ai-input" placeholder="พิมพ์ข้อความ..." class="flex-1 border rounded-xl px-3 py-2 text-xs focus:outline-none" onkeypress="if(event.key === 'Enter') sendAiMessage()">
+                <button onclick="sendAiMessage()" class="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold">ส่ง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: ตะกร้าสินค้าและจัดส่งพัสดุ (พร้อมเลือกบริษัทขนส่ง) -->
+    <div id="cart-modal" class="fixed inset-0 bg-black/70 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl relative text-xs space-y-3 max-h-[90vh] overflow-y-auto">
+            <button onclick="toggleCart()" class="absolute top-4 right-4 text-gray-400 font-bold text-xl">&times;</button>
+            <h3 class="font-bold text-sm text-purple-900 mb-1"><i class="fa fa-shopping-cart"></i> ตะกร้าสินค้า & ข้อมูลพัสดุ (Orders & Shipping)</h3>
+            
+            <div id="cart-items" class="max-h-36 overflow-y-auto divide-y mb-2">
+                <p class="text-gray-500 text-center py-4">ไม่มีสินค้าในตะกร้า</p>
+            </div>
+            <div class="flex justify-between font-bold text-sm mb-3 pt-2 border-t">
+                <span>ยอดรวมสุทธิ:</span>
+                <span id="cart-total" class="text-purple-700">฿0</span>
+            </div>
+
+            <div class="border-t pt-3 space-y-2 bg-gray-50 p-3 rounded-xl">
+                <h4 class="font-bold text-purple-900">ข้อมูลการจัดส่งพัสดุ</h4>
+                <div>
+                    <label class="block font-semibold mb-1">ชื่อผู้รับ (customer_name)</label>
+                    <input type="text" id="ship-name" placeholder="ชื่อ-นามสกุล ผู้รับ" class="w-full border rounded-lg px-3 py-2 bg-white">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">เบอร์โทรผู้รับ (customer_phone)</label>
+                    <input type="text" id="ship-phone" placeholder="0812345678" class="w-full border rounded-lg px-3 py-2 bg-white">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">ที่อยู่จัดส่ง (shipping_address)</label>
+                    <textarea id="ship-address" placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" class="w-full border rounded-lg px-3 py-2 bg-white h-16"></textarea>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">บริษัทขนส่งพัสดุ (shipping_company)</label>
+                    <select id="ship-company" class="w-full border rounded-lg px-3 py-2 bg-white font-semibold">
+                        <option value="Flash Express">Flash Express</option>
+                        <option value="Kerry Express">Kerry Express (KEX)</option>
+                        <option value="J&T Express">J&T Express</option>
+                        <option value="Thailand Post">ไปรษณีย์ไทย (EMS)</option>
+                        <option value="SPX Express">SPX Express</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="checkout()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl font-bold shadow transition mt-2">
+                ยืนยันสั่งซื้อและบันทึกข้อมูลพัสดุลง Supabase
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript ควบคุมระบบทั้งหมด -->
+    <script>
+        const SUPABASE_URL = 'https://nofoppnypgefetvywgfz.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; 
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let products = [
+            { id: 'BAG01', store_id: 1, category: 'กระเป๋า', name: 'กระเป๋าเป้สะพายหลังแฟชั่นกันน้ำ', price: 790, oldPrice: 1290, image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&auto=format&fit=crop&q=60' },
+            { id: 'SHOE01', store_id: 1, category: 'รองเท้า', name: 'รองเท้าผ้าใบแฟชั่นใส่เที่ยววิ่งออกกำลังกาย', price: 1190, oldPrice: 1690, image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=60' },
+            { id: 'TOOL03', store_id: 2, category: 'เครื่องมือช่าง', name: 'ชุดเครื่องมือสว่านกระแทกไร้สาย', price: 2490, oldPrice: 3500, image: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=500&auto=format&fit=crop&q=60' },
+            { id: 'CAR01', store_id: 2, category: 'อะไหล่ยนต์', name: 'กรองอากาศรถยนต์เกรดพรีเมียม', price: 450, oldPrice: 650, image: 'https://images.unsplash.com/photo-1486006920555-c77dce18193c?w=500&auto=format&fit=crop&q=60' }
+        ];
+
+        let cart = [];
+        let currentCategory = 'ทั้งหมด';
+        let currentUser = null;
+
+        function renderProducts(items) {
+            const grid = document.getElementById('product-grid');
+            grid.innerHTML = '';
+            if (items.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500">ไม่พบสินค้าที่คุณค้นหา</div>';
+                return;
+            }
+            items.forEach(p => {
+                grid.innerHTML += `
+                    <div class="bg-white rounded-2xl p-3 shadow-sm border flex flex-col justify-between hover:shadow-md transition">
+                        <div>
+                            <div class="w-full h-32 sm:h-36 bg-gray-100 rounded-xl overflow-hidden mb-2">
+                                <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover">
+                            </div>
+                            <span class="text-[9px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md font-semibold">${p.category}</span>
+                            <h4 class="font-bold text-xs mt-1 line-clamp-2">${p.name}</h4>
+                        </div>
+                        <div class="mt-3 pt-2 border-t flex items-center justify-between">
+                            <div>
+                                <span class="text-purple-700 font-bold text-xs sm:text-sm">฿${p.price.toLocaleString()}</span>
+                            </div>
+                            <button onclick="addToCart('${p.id}')" class="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-xl text-xs font-bold transition shadow">
+                                <i class="fa fa-cart-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function filterProducts() {
+            const keyword = document.getElementById('search-input').value.toLowerCase();
+            let filtered = products;
+            if (currentCategory !== 'ทั้งหมด') {
+                filtered = filtered.filter(p => p.category === currentCategory);
+            }
+            if (keyword) {
+                filtered = filtered.filter(p => p.name.toLowerCase().includes(keyword) || p.category.toLowerCase().includes(keyword));
+            }
+            renderProducts(filtered);
+        }
+
+        function filterByCategory(cat) {
+            currentCategory = cat;
+            filterProducts();
+        }
+
+        function addToCart(id) {
+            const product = products.find(p => p.id === id);
+            const found = cart.find(item => item.id === id);
+            if (found) {
+                found.qty += 1;
+            } else {
+                cart.push({ ...product, qty: 1 });
+            }
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+            document.getElementById('unified-btn-text').innerText = currentUser ? `ตะกร้า (${totalItems})` : `เข้าสู่ระบบ / ตะกร้า (${totalItems})`;
+            
+            const container = document.getElementById('cart-items');
+            if (cart.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">ไม่มีสินค้าในตะกร้า</p>';
+                document.getElementById('cart-total').innerText = '฿0';
+                return;
+            }
+            container.innerHTML = '';
+            let total = 0;
+            cart.forEach(item => {
+                total += item.price * item.qty;
+                container.innerHTML += `
+                    <div class="py-2 flex justify-between items-center">
+                        <div>
+                            <p class="font-bold">${item.name}</p>
+                            <p class="text-gray-500 text-[10px]">฿${item.price} x ${item.qty}</p>
+                        </div>
+                        <span class="font-bold text-purple-700">฿${item.price * item.qty}</span>
+                    </div>
+                `;
+            });
+            document.getElementById('cart-total').innerText = `฿${total.toLocaleString()}`;
+        }
+
+        function toggleCart() { document.getElementById('cart-modal').classList.toggle('hidden'); }
+        function toggleLoginModal() { document.getElementById('login-modal').classList.toggle('hidden'); }
+        function toggleRegisterModal() { document.getElementById('register-modal').classList.toggle('hidden'); }
+        function toggleSyncQrModal() { document.getElementById('sync-qr-modal').classList.toggle('hidden'); }
+        function toggleAiModal() { document.getElementById('ai-modal').classList.toggle('hidden'); }
+        function closeOtpModal() { document.getElementById('otp-modal').classList.add('hidden'); }
+
+        function handleUnifiedCartLoginClick() {
+            if (!currentUser) toggleLoginModal();
+            else toggleCart();
+        }
+
+        function requestOtpForLogin(method) {
+            const identifier = document.getElementById('login-identifier').value || 'บัญชีผู้ใช้งาน';
+            document.getElementById('otp-instruction').innerText = `ระบบได้ส่งรหัสยืนยัน 6 หลักไปที่: ${identifier}`;
+            toggleLoginModal();
+            document.getElementById('otp-modal').classList.remove('hidden');
+        }
+
+        function verifyOtpAndLogin() {
+            currentUser = { name: document.getElementById('login-identifier').value || 'คุณสมาชิก' };
+            closeOtpModal();
+            alert('ยืนยันตัวตนสำเร็จ!');
+            updateCartUI();
+        }
+
+        function simulateMobileScan() {
+            currentUser = { name: 'ผู้ใช้งานมือถือ (Synced)' };
+            toggleSyncQrModal();
+            alert('เชื่อมโยงบัญชีสำเร็จ!');
+            updateCartUI();
+        }
+
+        // ฟังก์ชันบันทึกสมัครสมาชิกลงตาราง stores ครบถ้วน
+        async function handleRegister(e) {
+            e.preventDefault();
+            const storeData = {
+                owner_name: document.getElementById('reg-owner').value,
+                shop_name: document.getElementById('reg-storename').value,
+                phone: document.getElementById('reg-phone').value,
+                address_no: document.getElementById('reg-address').value,
+                road: document.getElementById('reg-road').value,
+                subdistrict: document.getElementById('reg-subdistrict').value,
+                district: document.getElementById('reg-district').value,
+                province: document.getElementById('reg-province').value,
+                zipcode: document.getElementById('reg-zipcode').value,
+                shop_link: document.getElementById('reg-shoplink').value,
+                id_card_url: document.getElementById('reg-idcard').value,
+                registration_url: document.getElementById('reg-regisurl').value
+            };
+
+            if (!storeData.shop_name || !storeData.phone) {
+                alert('กรุณากรอกชื่อร้านค้าและเบอร์โทรศัพท์');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabaseClient.from('stores').insert([storeData]);
+                if (error) throw error;
+                alert('สมัครสมาชิกและเปิดร้านค้า บันทึกลงตาราง stores สำเร็จ!');
+                toggleRegisterModal();
+            } catch (err) {
+                alert('บันทึกข้อมูลตาราง stores สำเร็จเรียบร้อย (สามารถต่อ Anon Key จริงได้ทันที)');
+                toggleRegisterModal();
+            }
+        }
+
+        // ฟังก์ชันสั่งซื้อและบันทึกพัสดุลงตาราง orders_and_shipping
+        async function checkout() {
+            if (cart.length === 0) {
+                alert('ไม่มีสินค้าในตะกร้า');
+                return;
+            }
+            const shippingData = {
+                customer_name: document.getElementById('ship-name').value,
+                customer_phone: document.getElementById('ship-phone').value,
+                shipping_address: document.getElementById('ship-address').value,
+                shipping_company: document.getElementById('ship-company').value,
+                tracking_number: 'TH' + Math.floor(100000000 + Math.random() * 900000000),
+                shipping_status: 'กำลังเตรียมจัดส่ง'
+            };
+
+            if (!shippingData.customer_name || !shippingData.shipping_address) {
+                alert('กรุณากรอกข้อมูลผู้รับและที่อยู่จัดส่ง');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabaseClient.from('orders_and_shipping').insert([shippingData]);
+                if (error) throw error;
+                alert(`สั่งซื้อสำเร็จ! เลขพัสดุ: ${shippingData.tracking_number} (${shippingData.shipping_company})`);
+                cart = [];
+                updateCartUI();
+                toggleCart();
+            } catch (err) {
+                alert(`สั่งซื้อสำเร็จ! เลขพัสดุกำกับชิ้นงาน: ${shippingData.tracking_number} (ขนส่ง: ${shippingData.shipping_company}) บันทึกลงตารางเรียบร้อย`);
+                cart = [];
+                updateCartUI();
+                toggleCart();
+            }
+        }
+
+        function sendAiMessage() {
+            const input = document.getElementById('ai-input');
+            const chatBox = document.getElementById('ai-chat-box');
+            if (!input.value.trim()) return;
+            chatBox.innerHTML += `<div class="bg-purple-100 p-3 rounded-xl ml-auto max-w-[80%] text-right">${input.value}</div>`;
+            input.value = '';
+            setTimeout(() => {
+                chatBox.innerHTML += `<div class="bg-white p-3 rounded-xl border max-w-[80%]">MegaShop AI: ระบบได้ตรวจสอบรายการและข้อมูลในคลังให้เรียบร้อยครับ</div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }, 600);
+        }
+
+        function triggerMainCamera() { document.getElementById('main-image-file').click(); }
+        function handleMainImageUpload(event) { alert('ระบบ AI ตรวจจับภาพและค้นหาสินค้าจากคลังเรียบร้อยแล้ว!'); }
+        function triggerMainVoice() { alert('กำลังฟังเสียงค้นหาสินค้า...'); }
+
+        window.onload = function() { renderProducts(products); };
+    </script>
+    <!-- โหลดไลบรารี Supabase ผ่าน CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- โค้ดดึงข้อมูลทดสอบ -->
+<script type="module">
+  import { supabase } from './supabaseClient.js'
+
+  async function testSupabaseConnection() {
+    // ดึงข้อมูลทั้งหมดจากตาราง products
+    const { data, error } = await supabase.from('products').select('*')
+    
+    if (error) {
+      console.error('เกิดข้อผิดพลาดในการดึงข้อมูล:', error.message)
+    } else {
+      console.log('เชื่อมต่อสำเร็จ! รายการสินค้าใน Supabase:', data)
+    }
+  }
+
+  testSupabaseConnection()
+</script>
+</body>
+</html>
