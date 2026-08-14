@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MegaShop - Admin Control Center</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans pb-16">
+
+    <!-- Navbar ด้านบน -->
+    <nav class="bg-slate-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold">🛡️ MegaShop Control Center</h1>
+            <span id="admin-status" class="text-sm bg-emerald-600 px-3 py-1 rounded-full">ระบบพร้อมใช้งาน</span>
+        </div>
+    </nav>
+
+    <!-- เนื้อหาหลัก -->
+    <main class="max-w-7xl mx-auto px-4 mt-8">
+        
+        <!-- ส่วนหัวข้อ -->
+        <div class="mb-6 flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-800">จัดการข้อมูลร้านค้าในระบบ</h2>
+            <button onclick="loadStoreData()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition">
+                🔄 รีเฟรชข้อมูล
+            </button>
+        </div>
+
+        <!-- ตารางแสดงข้อมูลจาก Supabase -->
+        <div class="bg-white shadow-md rounded-lg overflow-hidden">
+            <table class="w-full border-collapse text-left">
+                <thead class="bg-gray-200 text-gray-700 uppercase text-sm">
+                    <tr>
+                        <th class="py-3 px-4">ชื่อร้านค้า</th>
+                        <th class="py-3 px-4">เบอร์โทรศัพท์</th>
+                        <th class="py-3 px-4">ลิงก์ร้านค้า / ข้อมูล</th>
+                        <th class="py-3 px-4 text-center">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="store-table-body" class="divide-y divide-gray-200 text-gray-600">
+                    <!-- ข้อมูลจะถูกดึงมาแสดงที่นี่ด้วย JavaScript -->
+                    <tr>
+                        <td colspan="4" class="text-center py-6 text-gray-400">กำลังโหลดข้อมูล...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </main>
+
+    <!-- Script สำหรับดึงข้อมูล -->
+    <script type="module">
+        import { supabase } from './supabaseClient.js';
+
+        async function fetchStores() {
+            const tableBody = document.getElementById('store-table-body');
+            tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-400">กำลังโหลดข้อมูลจากฐานข้อมูล...</td></tr>`;
+
+            try {
+                // ดึงข้อมูลจากตาราง stores ใน Supabase
+                const { data, error } = await supabase.from('stores').select('*');
+
+                if (error) {
+                    throw error;
+                }
+
+                if (!data || data.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-400">ยังไม่มีข้อมูลในระบบ</td></tr>`;
+                    return;
+                }
+
+                // นำข้อมูลมาแสดงในตาราง
+                tableBody.innerHTML = '';
+                data.forEach(store => {
+                    tableBody.innerHTML += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-3 px-4 font-medium text-gray-800">${store.shop_name || '-'}</td>
+                            <td class="py-3 px-4">${store.phone || '-'}</td>
+                            <td class="py-3 px-4"><a href="${store.shop_link || '#'}" target="_blank" class="text-blue-600 hover:underline">เปิดลิงก์</a></td>
+                            <td class="py-3 px-4 text-center">
+                                <button onclick="alert('ฟังก์ชันแก้ไขข้อมูล')" class="text-amber-600 hover:text-amber-800 mr-2">✏️ แก้ไข</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+            } catch (err) {
+                console.error(err);
+                tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>`;
+            }
+        }
+
+        // ผูกฟังก์ชันเข้ากับ Window เพื่อให้ปุ่มกดเรียกใช้ได้
+        window.loadStoreData = fetchStores;
+
+        // โหลดข้อมูลทันทีเมื่อเปิดหน้าเว็บ
+        fetchStores();
+    </script>
+</body>
+</html>
